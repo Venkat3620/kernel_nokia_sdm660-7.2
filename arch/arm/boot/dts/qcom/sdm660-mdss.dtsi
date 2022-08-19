@@ -397,7 +397,6 @@
 				"pll_pixel_clk_mux", "pll_byte_clk_src",
 				"pll_pixel_clk_src", "pll_shadow_byte_clk_src",
 				"pll_shadow_pixel_clk_src","bb_clk_2";          //modify by shenwenbin for M690 display 20190312 
-
 			qcom,null-insertion-enabled;
 			qcom,platform-strength-ctrl = [ff 06
 							ff 06

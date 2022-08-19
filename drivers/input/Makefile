@@ -31,3 +31,5 @@ obj-$(CONFIG_INPUT_KEYCOMBO)	+= keycombo.o
 
 # modify by zhoudan for fingerprint
 obj-y += fingerprint/
+
+obj-y   += sensors/bmi160/

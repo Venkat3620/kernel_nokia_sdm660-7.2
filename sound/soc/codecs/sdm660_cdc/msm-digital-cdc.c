@@ -1,4 +1,4 @@
-/* Copyright (c) 2015-2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2015-2020, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -40,7 +40,9 @@
 #define CF_MIN_3DB_75HZ			0x1
 #define CF_MIN_3DB_150HZ		0x2
 
+#define DEC_SVA 5
 #define MSM_DIG_CDC_VERSION_ENTRY_SIZE 32
+#define ADSP_UP 1
 
 static unsigned long rx_digital_gain_reg[] = {
 	MSM89XX_CDC_CORE_RX1_VOL_CTL_B2_CTL,
@@ -86,8 +88,13 @@ static int msm_digcdc_clock_control(bool flag)
 	if (flag) {
 		mutex_lock(&pdata->cdc_int_mclk0_mutex);
 		if (atomic_read(&pdata->int_mclk0_enabled) == false) {
-			if (msm_dig_cdc->regmap->cache_only == true)
-				return ret;
+			if (msm_dig_cdc->regmap->cache_only == true) {
+				if (test_bit(ADSP_UP,
+						&msm_dig_cdc->status_mask))
+					msm_dig_cdc->regmap->cache_only = false;
+				else
+					return ret;
+			}
 			if (pdata->native_clk_set)
 				pdata->digital_cdc_core_clk.clk_freq_in_hz =
 							NATIVE_MCLK_RATE;
@@ -212,6 +219,9 @@ static int msm_dig_cdc_put_dec_enum(struct snd_kcontrol *kcontrol,
 
 	tx_mux_ctl_reg =
 		MSM89XX_CDC_CORE_TX1_MUX_CTL + 32 * (decimator - 1);
+
+	if (decimator == DEC_SVA)
+		tx_mux_ctl_reg = MSM89XX_CDC_CORE_TX5_MUX_CTL;
 
 	snd_soc_update_bits(codec, tx_mux_ctl_reg, 0x1, adc_dmic_sel);
 
@@ -939,7 +949,7 @@ static int msm_dig_cdc_codec_enable_dec(struct snd_soc_dapm_widget *w,
 			 32 * (decimator - 1);
 	tx_mux_ctl_reg = MSM89XX_CDC_CORE_TX1_MUX_CTL +
 			  32 * (decimator - 1);
-	if (decimator == 5) {
+	if (decimator == DEC_SVA) {
 		tx_vol_ctl_reg = MSM89XX_CDC_CORE_TX5_VOL_CTL_CFG;
 		tx_mux_ctl_reg = MSM89XX_CDC_CORE_TX5_MUX_CTL;
 	}
@@ -1111,9 +1121,11 @@ static int msm_dig_cdc_event_notify(struct notifier_block *block,
 				MSM89XX_CDC_CORE_RX2_B3_CTL, 0x80, 0x00);
 		break;
 	case DIG_CDC_EVENT_SSR_DOWN:
+		clear_bit(ADSP_UP, &msm_dig_cdc->status_mask);
 		regcache_cache_only(msm_dig_cdc->regmap, true);
 		break;
 	case DIG_CDC_EVENT_SSR_UP:
+		set_bit(ADSP_UP, &msm_dig_cdc->status_mask);
 		regcache_cache_only(msm_dig_cdc->regmap, false);
 		regcache_mark_dirty(msm_dig_cdc->regmap);
 
@@ -1250,15 +1262,19 @@ static void sdm660_tx_mute_update_callback(struct work_struct *work)
 	dig_cdc = tx_mute_dwork->dig_cdc;
 	codec = dig_cdc->codec;
 
-	for (i = 0; i < (NUM_DECIMATORS - 1); i++) {
+	for (i = 0; i < NUM_DECIMATORS; i++) {
 		if (dig_cdc->dec_active[i])
 			decimator = i + 1;
-		if (decimator && decimator < NUM_DECIMATORS) {
+		if (decimator && decimator <= NUM_DECIMATORS) {
 			/* unmute decimators corresponding to Tx DAI's*/
 			tx_vol_ctl_reg =
 				MSM89XX_CDC_CORE_TX1_VOL_CTL_CFG +
 					32 * (decimator - 1);
-				snd_soc_update_bits(codec, tx_vol_ctl_reg,
+			if (decimator == DEC_SVA)
+				tx_vol_ctl_reg =
+					MSM89XX_CDC_CORE_TX5_VOL_CTL_CFG;
+
+			snd_soc_update_bits(codec, tx_vol_ctl_reg,
 					0x01, 0x00);
 		}
 		decimator = 0;
@@ -2137,6 +2153,7 @@ static int msm_dig_cdc_probe(struct platform_device *pdev)
 				msm_codec_dais, ARRAY_SIZE(msm_codec_dais));
 	dev_dbg(&pdev->dev, "%s: registered DIG CODEC 0x%x\n",
 			__func__, dig_cdc_addr);
+	set_bit(ADSP_UP, &msm_dig_cdc->status_mask);
 rtn:
 	return ret;
 }
