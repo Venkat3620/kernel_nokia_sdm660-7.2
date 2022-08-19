@@ -733,12 +733,4 @@ CONFIG_I2C_DEVINFO=y
 #add begin by wufengfeng @20190910 for SLD-1827 and case id 04174667
 CONFIG_SUSPEND_SKIP_SYNC=y
 #add end by wufengfeng @20190910 for SLD-1827 and case id 04174667
-
-# add sar ant check by xiaopei at 2019520                                                                                                           
 CONFIG_ANT_CHECK=y
-# added by liwei for trustonic 20190624
-CONFIG_TRUSTONIC_TEE = y
-CONFIG_TRUSTONIC_TEE_LPAE = y
-CONFIG_TRUSTONIC_TEE_DEBUG = y
-CONFIG_TRUSTONIC_TRUSTED_UI = y
-CONFIG_TRUSTONIC_TRUSTED_UI_FB_BLANK = y
